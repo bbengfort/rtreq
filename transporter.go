@@ -54,6 +54,15 @@ func (t *Transporter) Close() error {
 	return t.sock.Close()
 }
 
+// Shutdown the ZMQ context permanently (should only be called once).
+func (t *Transporter) Shutdown() error {
+	if err := t.context.Term(); err != nil {
+		return err
+	}
+
+	return zmq.Term()
+}
+
 //===========================================================================
 // Send and Recv Protobuf Messages
 //===========================================================================

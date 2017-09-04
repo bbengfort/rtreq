@@ -7,7 +7,6 @@ import (
 
 	"github.com/bbengfort/rtreq"
 	"github.com/joho/godotenv"
-	zmq "github.com/pebbe/zmq4"
 	"github.com/urfave/cli"
 )
 
@@ -46,6 +45,15 @@ func main() {
 				cli.StringFlag{
 					Name:  "u, uptime",
 					Usage: "pass a parsable duration to shut the server down after",
+				},
+				cli.BoolFlag{
+					Name:  "s, sync",
+					Usage: "run the server to respond synchronously to clients",
+				},
+				cli.IntFlag{
+					Name:  "w, workers",
+					Usage: "the number of workers to run in async mode",
+					Value: rtreq.DefaultNWorkers,
 				},
 				cli.UintFlag{
 					Name:  "verbosity",
@@ -148,19 +156,20 @@ func exit(msg string, err error, a ...interface{}) error {
 }
 
 func serve(c *cli.Context) error {
-	defer zmq.Term()
-	context, err := zmq.NewContext()
-	if err != nil {
-		return exit("could not create zmq context", err)
-	}
-
 	// Set the debug log level
 	verbose := c.Uint("verbosity")
 	rtreq.SetLogLevel(uint8(verbose))
 
 	// Create the server
-	server := new(rtreq.Server)
-	server.Init(c.String("addr"), c.String("name"), context)
+	server, err := rtreq.NewServer(
+		c.String("addr"), c.String("name"), c.Bool("sync"), c.Int("workers"), nil,
+	)
+	if err != nil {
+		return exit("could not initialize server", err)
+	}
+
+	// Defer the shutdown
+	defer server.Shutdown()
 
 	// If uptime is specified, set a fixed duration for the server to run.
 	if uptime := c.String("uptime"); uptime != "" {
@@ -170,7 +179,7 @@ func serve(c *cli.Context) error {
 		}
 
 		time.AfterFunc(d, func() {
-			zmq.Term()
+			server.Shutdown()
 			os.Exit(0)
 		})
 	}
@@ -187,14 +196,11 @@ func serve(c *cli.Context) error {
 //===========================================================================
 
 func send(c *cli.Context) error {
-	defer zmq.Term()
-	context, err := zmq.NewContext()
+	client, err := rtreq.NewClient(c.String("addr"), c.String("name"), nil)
 	if err != nil {
-		return exit("", err)
+		return exit("could not create client", err)
 	}
-
-	client := new(rtreq.Client)
-	client.Init(c.String("addr"), c.String("name"), context)
+	defer client.Shutdown()
 
 	if err = client.Connect(); err != nil {
 		return exit("", err)
@@ -220,14 +226,11 @@ func bench(c *cli.Context) error {
 	verbose := c.Uint("verbosity")
 	rtreq.SetLogLevel(uint8(verbose))
 
-	defer zmq.Term()
-	context, err := zmq.NewContext()
+	client, err := rtreq.NewClient(c.String("addr"), c.String("name"), nil)
 	if err != nil {
-		exit("", err)
+		return exit("could not create client", err)
 	}
-
-	client := new(rtreq.Client)
-	client.Init(c.String("addr"), c.String("name"), context)
+	defer client.Shutdown()
 
 	if err = client.Connect(); err != nil {
 		return exit("", err)

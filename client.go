@@ -1,6 +1,8 @@
 package rtreq
 
 import (
+	"fmt"
+	"math/rand"
 	"time"
 
 	pb "github.com/bbengfort/rtreq/msg"
@@ -8,15 +10,30 @@ import (
 	zmq "github.com/pebbe/zmq4"
 )
 
+// NewClient creates a new rtreq.Client. If context is nil, it also creates
+// a context that will be managed by the sever.
+func NewClient(addr, name string, context *zmq.Context) (c *Client, err error) {
+	if context == nil {
+		if context, err = zmq.NewContext(); err != nil {
+			return nil, WrapError("could not create zmq context", err)
+		}
+	}
+
+	c = new(Client)
+	c.Init(addr, name, context)
+	return c, nil
+}
+
 //===========================================================================
-// Client for Remote Peers
+// Client Transporter
 //===========================================================================
 
-// Client communicates with a remote peer.
+// Client communicates a server.
 type Client struct {
 	Transporter
 	messages uint64        // number of messages sent to measure throughput
 	latency  time.Duration // total time to send messages for throughput
+	identity string        // the identity being sent to the server
 }
 
 // Connect to the remote peer
@@ -25,6 +42,12 @@ func (c *Client) Connect() (err error) {
 	if c.sock, err = c.context.NewSocket(zmq.REQ); err != nil {
 		return err
 	}
+
+	// Create an identity for the client
+	// NOTE: the identity must be unique - do not rely on randomness since
+	// parallel instantiation may result in the same seed!
+	c.identity = fmt.Sprintf("%s-%04X", c.name, rand.Intn(0x10000))
+	c.sock.SetIdentity(c.identity)
 
 	// Connect to the server
 	ep := c.addr

@@ -66,10 +66,17 @@ func (s *RouterServer) Run() (err error) {
 
 	// Connect worker threads to clients via a queue proxy
 	if err = zmq.Proxy(s.sock, s.inproc, nil); err != nil {
-		return WrapError("proxy interrupted", err)
+		if !s.stopped {
+			return WrapError("proxy interrupted", err)
+		}
+
 	}
 
-	return s.workers.Wait()
+	if !s.stopped {
+		return s.workers.Wait()
+	}
+
+	return nil
 }
 
 // Close the socket and clean up the connections.
@@ -135,7 +142,7 @@ func (w *Worker) Run() error {
 	for {
 		msg, err := w.recv()
 		if err != nil {
-			warne(err)
+			debug("error in %s: %s", w.name, err)
 			break
 		}
 		w.handle(msg)

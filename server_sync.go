@@ -39,11 +39,7 @@ func (s *RepServer) Run() (err error) {
 		s.handle(msg)
 	}
 
-	if err := s.Close(); err != nil {
-		return err
-	}
-
-	return s.Shutdown()
+	return nil
 }
 
 //===========================================================================

@@ -29,6 +29,7 @@ type Transporter struct {
 	nSent   uint64       // number of messages sent
 	nRecv   uint64       // number of messages received
 	nBytes  uint64       // number of bytes sent
+	stopped bool         // if the server is shutdown or not
 }
 
 // Init the transporter with the specified host and any other internal data.
@@ -56,11 +57,16 @@ func (t *Transporter) Close() error {
 
 // Shutdown the ZMQ context permanently (should only be called once).
 func (t *Transporter) Shutdown() error {
+	t.stopped = true
 	if err := t.context.Term(); err != nil {
 		return err
 	}
 
-	return zmq.Term()
+	if err := zmq.Term(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //===========================================================================

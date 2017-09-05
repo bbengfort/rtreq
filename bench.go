@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/bbengfort/x/stats"
 )
 
 // Benchmark the throughput in terms of messages per second to the zmqnet.
@@ -16,11 +18,12 @@ func (c *Client) Benchmark(duration time.Duration, results string, retries int, 
 	c.nSent = 0
 	c.nRecv = 0
 	c.nBytes = 0
+	c.stats = new(stats.Statistics)
 
 	// Initialize the results
 	extra := make(map[string]interface{})
 	extra["n_clients"] = nClients
-	extra["name"] = c.name
+	extra["name"] = c.identity
 
 	// Initialize channels
 	timer := time.NewTimer(duration)
@@ -61,8 +64,10 @@ func (c *Client) Access(done chan<- bool, echan chan<- error, retries int, timeo
 	}
 
 	// Compute the throughput
+	latency := time.Since(start)
 	c.messages++
-	c.latency += time.Since(start)
+	c.latency += latency
+	c.stats.Update(float64(latency))
 
 	// Signal done
 	done <- true
@@ -74,6 +79,7 @@ func (c *Client) Results(path string, data map[string]interface{}) error {
 	data["messages"] = c.messages
 	data["latency (nsec)"] = c.latency.Nanoseconds()
 	data["throughput (msg/sec)"] = float64(c.messages) / c.latency.Seconds()
+	data["latency distribution"] = c.stats.Serialize()
 	status("%d messages in %0.3f seconds - %0.3f msg/sec", c.messages, c.latency.Seconds(), data["throughput (msg/sec)"])
 	return appendJSON(path, data)
 }

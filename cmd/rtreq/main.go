@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -58,7 +59,7 @@ func main() {
 				cli.UintFlag{
 					Name:  "verbosity",
 					Usage: "set log level from 0-4, lower is more verbose",
-					Value: 2,
+					Value: 3,
 				},
 			},
 		},
@@ -127,6 +128,11 @@ func main() {
 					Name:  "o, results",
 					Usage: "path to write the results to",
 					Value: "results.json",
+				},
+				cli.Int64Flag{
+					Name:  "s, seed",
+					Usage: "specify random seed for the process",
+					Value: time.Now().Unix(),
 				},
 				cli.UintFlag{
 					Name:  "verbosity",
@@ -225,6 +231,9 @@ func bench(c *cli.Context) error {
 	// Set the debug log level
 	verbose := c.Uint("verbosity")
 	rtreq.SetLogLevel(uint8(verbose))
+
+	// Set the random seed
+	rand.Seed(c.Int64("seed"))
 
 	client, err := rtreq.NewClient(c.String("addr"), c.String("name"), nil)
 	if err != nil {

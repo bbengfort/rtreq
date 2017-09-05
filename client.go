@@ -6,6 +6,7 @@ import (
 	"time"
 
 	pb "github.com/bbengfort/rtreq/msg"
+	"github.com/bbengfort/x/stats"
 	"github.com/gogo/protobuf/proto"
 	zmq "github.com/pebbe/zmq4"
 )
@@ -31,9 +32,10 @@ func NewClient(addr, name string, context *zmq.Context) (c *Client, err error) {
 // Client communicates a server.
 type Client struct {
 	Transporter
-	messages uint64        // number of messages sent to measure throughput
-	latency  time.Duration // total time to send messages for throughput
-	identity string        // the identity being sent to the server
+	messages uint64            // number of messages sent to measure throughput
+	latency  time.Duration     // total time to send messages for throughput
+	stats    *stats.Statistics // distribution of message latency
+	identity string            // the identity being sent to the server
 }
 
 // Connect to the remote peer

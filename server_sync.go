@@ -28,7 +28,7 @@ func (s *RepServer) Run() (err error) {
 	if err := s.sock.Bind(s.addr); err != nil {
 		return WrapError("could not bind '%s'", err, s.addr)
 	}
-	status("bound sync server to %s\n", s.addr)
+	status("bound sync server to %s with REP socket\n", s.addr)
 
 	for {
 		msg, err := s.recv()
@@ -39,6 +39,20 @@ func (s *RepServer) Run() (err error) {
 		s.handle(msg)
 	}
 
+	return nil
+}
+
+// Shutdown the server and print the metrics out
+func (s *RepServer) Shutdown(path string) error {
+	if err := s.Transporter.Shutdown(); err != nil {
+		return err
+	}
+
+	status("%s", s.metrics)
+	if path != "" {
+		extra := map[string]interface{}{"server": "rep"}
+		return s.metrics.Write(path, extra)
+	}
 	return nil
 }
 

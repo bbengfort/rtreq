@@ -26,13 +26,13 @@ type RouterServer struct {
 	Transporter
 	inproc   *zmq.Socket     // ipc DEALER socket to communicate with workers
 	nWorkers int             // number of workers to initialize
-	workers  *errgroup.Group // worker threads to handle requests
+	group    *errgroup.Group // group to manage worker go routines
+	workers  []*Worker       // worker threads to handle requests
 }
 
 // Run the server and listen for messages
 func (s *RouterServer) Run() (err error) {
 	defer s.Close()
-	defer s.Shutdown()
 
 	// Create the socket to talk to clients
 	if s.sock, err = s.context.NewSocket(zmq.ROUTER); err != nil {
@@ -43,7 +43,7 @@ func (s *RouterServer) Run() (err error) {
 	if err = s.sock.Bind(s.addr); err != nil {
 		return WrapError("could not bind '%s'", err, s.addr)
 	}
-	status("bound async server to %s\n", s.addr)
+	status("bound async server to %s with ROUTER socket\n", s.addr)
 
 	// Create the socket to talk to workers
 	if s.inproc, err = s.context.NewSocket(zmq.DEALER); err != nil {
@@ -56,11 +56,13 @@ func (s *RouterServer) Run() (err error) {
 	}
 
 	// Create the workers pool
-	s.workers, _ = errgroup.WithContext(context.Background())
+	s.workers = make([]*Worker, 0, s.nWorkers)
+	s.group, _ = errgroup.WithContext(context.Background())
 	for w := 0; w < s.nWorkers; w++ {
 		worker := new(Worker)
 		worker.Init(fmt.Sprintf("%s-%d", s.name, w+1), s.context)
-		s.workers.Go(worker.Run)
+		s.workers = append(s.workers, worker)
+		s.group.Go(worker.Run)
 	}
 	info("initialized %d workers", s.nWorkers)
 
@@ -73,7 +75,7 @@ func (s *RouterServer) Run() (err error) {
 	}
 
 	if !s.stopped {
-		return s.workers.Wait()
+		return s.group.Wait()
 	}
 
 	return nil
@@ -102,6 +104,25 @@ func (s *RouterServer) SetWorkers(n int) {
 	s.nWorkers = n
 }
 
+// Shutdown the server and print the metrics out
+func (s *RouterServer) Shutdown(path string) error {
+	if err := s.Transporter.Shutdown(); err != nil {
+		return err
+	}
+
+	// Collect all the metrics
+	for _, worker := range s.workers {
+		s.metrics.Append(worker.metrics)
+	}
+
+	status("%s", s.metrics)
+	if path != "" {
+		extra := map[string]interface{}{"server": "router"}
+		return s.metrics.Write(path, extra)
+	}
+	return nil
+}
+
 //===========================================================================
 // Message Handling Workers
 //===========================================================================
@@ -118,6 +139,9 @@ func (w *Worker) Init(name string, context *zmq.Context) {
 	w.addr = IPCAddr
 	w.context = context
 	w.name = name
+
+	w.metrics = new(Metrics)
+	w.metrics.Init()
 
 	var err error
 	w.sock, err = context.NewSocket(zmq.REP)

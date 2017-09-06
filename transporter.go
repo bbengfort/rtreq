@@ -29,6 +29,7 @@ type Transporter struct {
 	nSent   uint64       // number of messages sent
 	nRecv   uint64       // number of messages received
 	nBytes  uint64       // number of bytes sent
+	metrics *Metrics     // client access metrics
 	stopped bool         // if the server is shutdown or not
 }
 
@@ -36,6 +37,8 @@ type Transporter struct {
 func (t *Transporter) Init(addr, name string, context *zmq.Context) {
 	t.addr = fmt.Sprintf("tcp://%s", addr)
 	t.context = context
+	t.metrics = new(Metrics)
+	t.metrics.Init()
 
 	// if name is empty string, set it to the hostname
 	if name == "" {
@@ -96,6 +99,7 @@ func (t *Transporter) recv() (*pb.BasicMessage, error) {
 
 	// Increment the number of messages received
 	t.nRecv++
+	t.metrics.Increment(message.Sender)
 
 	// Return the message
 	return message, nil
@@ -127,6 +131,7 @@ func (t *Transporter) send(message string) error {
 	}
 
 	// Increment the number of messages sent and the number of bytes sent
+	t.metrics.Complete()
 	t.nBytes += uint64(nbytes)
 	t.nSent++
 

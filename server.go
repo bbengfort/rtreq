@@ -34,5 +34,5 @@ func NewServer(addr, name string, sync bool, nWorkers int, context *zmq.Context)
 type Server interface {
 	Init(addr, name string, context *zmq.Context)
 	Run() error
-	Shutdown() error
+	Shutdown(path string) error
 }

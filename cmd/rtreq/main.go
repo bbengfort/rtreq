@@ -59,6 +59,7 @@ func main() {
 				cli.StringFlag{
 					Name:  "o, outpath",
 					Usage: "path to write metrics out to",
+                    Value: "metrics.json",
 				},
 				cli.UintFlag{
 					Name:  "verbosity",
